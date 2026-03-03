@@ -4,11 +4,11 @@ A toy CLI for archving an [OME-Zarr](https://ngff.openmicroscopy.org) hierarchy 
 
 ## Usage
 
-Requires a recent rust compiler.
+Requires a recent [rust toolchain](https://rustup.rs/).
 
 ```sh
 # Clone and enter this repository
-git clone git@github.com:clbarnes/ozx.git
+git clone https://github.com/clbarnes/ozx.git
 cd ozx
 
 # Optionally, install the `ozx` tool
@@ -19,7 +19,7 @@ cargo install --path .
 # If you don't have any OME-Zarr data available,
 # you can fetch some with
 ./fetch_kingsnake.sh
-# which populates `./fixtures/kingsnake.ome.zarr`
+# which populates `./fixtures/kingsnake.ome.zarr/`
 
 # See the tool's help text
 ozx --help
