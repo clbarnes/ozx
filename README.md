@@ -29,6 +29,8 @@ ozx create --help
 ozx create --force ./fixtures/kingsnake.ozx ./fixtures/kingsnake.ome.zarr
 ```
 
+You can also directly install the tool with `cargo install ozx`.
+
 ## Limitations
 
 This was originally intended as an exploration of the format rather than a production tool,
