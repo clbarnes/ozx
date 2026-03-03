@@ -60,7 +60,7 @@ fn create(
         let w = zipper::StreamWriter::new(stdout);
         OzxCreator::new(w, root, !no_sort_metadata).create()
     } else {
-        if archive.extension().is_none_or(|ext| ext != ".ozx") {
+        if archive.extension().is_none_or(|ext| ext != "ozx") {
             log::warn!("Archive extension should end with .ozx");
         }
         let f = OpenOptions::new()
