@@ -10,6 +10,8 @@ struct ZarrMetadataWalker {
     root_dir: PathBuf,
     /// Directory paths relative to [Walker::root_dir].
     dirs_to_visit: VecDeque<PathBuf>,
+    /// Buffer used internally when discovering directories; relative to [Self::root_dir].
+    dir_buf: Vec<PathBuf>,
 }
 
 impl ZarrMetadataWalker {
@@ -20,6 +22,7 @@ impl ZarrMetadataWalker {
                 .canonicalize()
                 .expect("canonicalize root dir"),
             dirs_to_visit: VecDeque::from([PathBuf::default()]),
+            dir_buf: Vec::default(),
         }
     }
 
@@ -36,13 +39,13 @@ impl Iterator for ZarrMetadataWalker {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(local) = self.dirs_to_visit.pop_front() {
             log::debug!("Popped {local:?} from dirs_to_visit");
-            let mut dirs = vec![];
+            self.dir_buf.clear();
             let mut to_return = None;
             let canonical = self.root_dir.join(&local);
             for res in fs::read_dir(&canonical).expect("read dir") {
                 let entry = res.expect("read entry");
                 let name = entry.file_name();
-                if name.to_string_lossy().starts_with('.') {
+                if name.as_encoded_bytes().starts_with(b".") {
                     log::debug!("Skipping hidden entry {name:?}");
                     continue;
                 }
@@ -60,11 +63,11 @@ impl Iterator for ZarrMetadataWalker {
                 }
 
                 if ft.is_dir() {
-                    dirs.push(local.join(&name));
+                    self.dir_buf.push(local.join(&name));
                 }
             }
-            dirs.sort();
-            self.dirs_to_visit.extend(dirs);
+            self.dir_buf.sort();
+            self.dirs_to_visit.extend(self.dir_buf.drain(..));
             if to_return.is_some() {
                 return to_return;
             }
@@ -73,7 +76,7 @@ impl Iterator for ZarrMetadataWalker {
     }
 }
 
-/// Skips zarr.json entries.
+/// Optionally skips zarr.json files.
 struct DataWalker {
     root_dir: PathBuf,
     /// Relative to root_dir
@@ -92,7 +95,7 @@ impl DataWalker {
 
         Self {
             root_dir,
-            dirs_to_visit: Vec::from([PathBuf::default()]),
+            dirs_to_visit: vec![PathBuf::default()],
             files_to_yield: Vec::default(),
             skip_zarr_json,
         }
@@ -100,6 +103,8 @@ impl DataWalker {
 }
 
 impl Iterator for DataWalker {
+    /// Path of entry (relative to [Self::root_dir]), and an open file handle if the entry is a file;
+    /// None otherwise.
     type Item = (PathBuf, Option<File>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -110,59 +115,58 @@ impl Iterator for DataWalker {
                     Ok(f) => return Some((local, Some(f))),
                     Err(e) => {
                         log::warn!("Skipping {canonical:?} after error: {e}");
-                        continue;
                     }
                 }
-            } else if let Some(local) = self.dirs_to_visit.pop() {
-                // sort items into files and dirs
-                let canonical = self.root_dir.join(&local);
-                let readdir = match fs::read_dir(&canonical) {
-                    Ok(rd) => rd,
+                continue;
+            }
+
+            let local = self.dirs_to_visit.pop()?;
+            // sort items into files and dirs
+            let canonical = self.root_dir.join(&local);
+            let readdir = match fs::read_dir(&canonical) {
+                Ok(rd) => rd,
+                Err(e) => {
+                    log::warn!(
+                        "Skipping {} after error listing directory: {e}",
+                        canonical.display()
+                    );
+                    continue;
+                }
+            };
+            for res in readdir {
+                let entry = match res {
+                    Ok(e) => e,
+                    Err(e) => {
+                        log::warn!("Skipping entry after stat error: {e}");
+                        continue;
+                    }
+                };
+                let ft = match entry.file_type() {
+                    Ok(ft) => ft,
                     Err(e) => {
                         log::warn!(
-                            "Skipping {} after error listing directory: {e}",
-                            canonical.display()
+                            "Skipping entry after stat error for {}: {e}",
+                            entry.path().display()
                         );
                         continue;
                     }
                 };
-                for res in readdir {
-                    let entry = match res {
-                        Ok(e) => e,
-                        Err(e) => {
-                            log::warn!("Skipping entry after stat error: {e}");
-                            continue;
-                        }
-                    };
-                    let ft = match entry.file_type() {
-                        Ok(ft) => ft,
-                        Err(e) => {
-                            log::warn!(
-                                "Skipping entry after stat error for {}: {e}",
-                                entry.path().display()
-                            );
-                            continue;
-                        }
-                    };
-                    if ft.is_dir() {
-                        self.dirs_to_visit.push(local.join(entry.file_name()));
-                    } else if ft.is_file() {
-                        if !self.skip_zarr_json || entry.file_name() != "zarr.json" {
-                            self.files_to_yield.push(local.join(entry.file_name()));
-                        }
-                    } else {
-                        log::warn!(
-                            "Skipping non-file, non-directory entry {}",
-                            entry.path().display()
-                        );
+                if ft.is_dir() {
+                    self.dirs_to_visit.push(local.join(entry.file_name()));
+                } else if ft.is_file() {
+                    if !self.skip_zarr_json || entry.file_name() != "zarr.json" {
+                        self.files_to_yield.push(local.join(entry.file_name()));
                     }
+                } else {
+                    log::warn!(
+                        "Skipping non-file, non-directory entry {}",
+                        entry.path().display()
+                    );
                 }
-                // skip empty (i.e. initial) directory
-                if local.components().next().is_some() {
-                    return Some((local, None));
-                }
-            } else {
-                return None;
+            }
+            // skip empty (i.e. initial) directory
+            if local.components().next().is_some() {
+                return Some((local, None));
             }
         }
     }
