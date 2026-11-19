@@ -9,6 +9,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::commands::Command;
 
+///
+/// The STORE argument may be a URL (i.e. start with a scheme), a store name from a config file, or a path to a local directory.
+/// Further configuration options may be specified with `--option key=value`, or in a config file `--config path/to/config.toml`, or with an environment variable `OZX_STORE__{key}=value` (note the double underscore!).
 #[derive(Debug, Parser)]
 #[command(version, about, long_about)]
 struct Args {

@@ -24,6 +24,11 @@ pub struct CreateCmd {
     /// this flag disables that behaviour.
     #[arg(short = 'S', long)]
     no_sort_metadata: bool,
+    /// Number of concurrent downloaders to use when creating the archive.
+    /// Too many downloaders may overwhelm the store or the network, or could result in high memory usage.
+    /// Too few will leave the writer waiting for the next chunks.
+    #[arg(short = 'd', long, default_value = "100")]
+    downloaders: usize,
 }
 
 impl Command for CreateCmd {
@@ -47,12 +52,12 @@ impl Command for CreateCmd {
                     .truncate(true)
                     .write(true)
                     .open(&p)?;
-                download_and_write(op, list_opts, f).await?;
+                download_and_write(op, list_opts, f, self.downloaders).await?;
             }
             StreamPath::Stream => {
                 let stdout = std::io::stdout().lock();
                 let w = zip::write::StreamWriter::new(stdout);
-                download_and_write(op, list_opts, w).await?;
+                download_and_write(op, list_opts, w, self.downloaders).await?;
             }
         }
         Ok(())

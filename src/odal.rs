@@ -337,10 +337,11 @@ pub async fn download_and_write(
     op: Operator,
     list_opts: ListOpts,
     writer: impl Write + std::io::Seek,
+    downloaders: usize,
 ) -> anyhow::Result<()> {
     let mut zipper = ZipWriter::new(writer);
 
-    let (sender, mut value_recv) = tokio::sync::mpsc::channel(100);
+    let (sender, mut value_recv) = tokio::sync::mpsc::channel(downloaders);
 
     let download_handle = tokio::spawn(download_worker(op, list_opts, sender));
 

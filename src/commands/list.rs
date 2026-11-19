@@ -11,8 +11,6 @@ pub struct ListCmd {
     store: OneStoreArgs,
     #[arg(short, long)]
     eager: bool,
-    #[arg(short, long, default_value = "10")]
-    threads: usize,
     #[arg(short = 'S', long)]
     no_sort_metadata: bool,
 }

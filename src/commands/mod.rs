@@ -20,7 +20,7 @@ pub trait Command {
 pub enum Commands {
     /// List the contents of a zarr hierarchy in the order they would be zipped.
     List(ListCmd),
-    /// Create a new .ozx archive.
+    /// Read a zarr hierarchy from a (possibly remote) store and write it to a local .ozx archive.
     Create(CreateCmd),
 }
 
@@ -49,9 +49,12 @@ fn merge_config(
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct OneStoreArgs {
+    /// Store to use, which may be a URL (i.e. start with a scheme), a store name from a config file, or a path to a local directory.
     store: Option<String>,
+    /// Key-value pairs to override store configuration, e.g. `--option key=value`. For supported options, see https://opendal.apache.org/services/ .
     #[arg(short, long="option", value_parser = storecfg::cli::parse_key_value_clap)]
     options: Vec<(String, String)>,
+    /// Path to a TOML file containing store configurations. Can be specified multiple times to load multiple config files.
     #[arg(short, long = "config")]
     configs: Vec<StreamPathRead>,
 }
@@ -61,7 +64,7 @@ impl OneStoreArgs {
         let mut coll = storecfg::StoreConfigCollector::default();
         for spr in self.configs {
             let contents = spr.read_all()?;
-            let config: Config = serde_json::from_slice(&contents)?;
+            let config: Config = toml::from_slice(&contents)?;
             for (name, kvs) in config.stores {
                 for (k, v) in kvs {
                     coll.add(&name, &k, v);
