@@ -1,16 +1,17 @@
-use std::fs::OpenOptions;
+use std::{io::BufWriter};
 
 use super::Command;
 use crate::{GlobalArgs, commands::OneStoreArgs, odal::download_and_write};
 use anyhow::bail;
-use streampath::StreamPath;
+use clio::OutputPath;
 
 #[derive(Debug, clap::Args, Clone)]
 pub struct CreateCmd {
     /// Path to the archive to be written,
     /// which SHOULD end with .ozx and MUST NOT exist (unless --force is given);
     /// MAY be `-` to write to stdout.
-    archive: StreamPath,
+    #[clap(value_parser)]
+    archive: OutputPath,
     #[clap(flatten)]
     store: OneStoreArgs,
     /// Fetch all object keys and sort locally rather than fetching directory-by-directory,
@@ -33,7 +34,7 @@ pub struct CreateCmd {
 
 impl Command for CreateCmd {
     async fn run(self, _global: GlobalArgs) -> anyhow::Result<()> {
-        if !self.force && self.archive.path().is_some_and(|p| p.exists()) {
+        if !self.force && !self.archive.is_std() && self.archive.path().exists() {
             bail!("Archive already exists. Delete it or use --force.");
         }
         let op = self.store.select()?;
@@ -42,24 +43,17 @@ impl Command for CreateCmd {
             json_first: !self.no_sort_metadata,
             eager: self.eager,
         };
-        match self.archive {
-            StreamPath::Path(p) => {
-                if p.extension().is_none_or(|ext| ext != "ozx") {
-                    tracing::warn!("Archive extension should end with .ozx");
-                }
-                let f = OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(&p)?;
-                download_and_write(op, list_opts, f, self.downloaders).await?;
-            }
-            StreamPath::Stream => {
-                let stdout = std::io::stdout().lock();
-                let w = zip::write::StreamWriter::new(stdout);
-                download_and_write(op, list_opts, w, self.downloaders).await?;
-            }
+
+        if !self.archive.is_std() && self.archive.path().extension().is_none_or(|ext| ext != "ozx") {
+            tracing::warn!("Archive extension should end with .ozx");
         }
+
+        if !self.archive.is_local() {
+            bail!("Archive must be a local file or stdout. Writing to remote stores is not supported.");
+        }
+
+        let w = zip::write::StreamWriter::new(BufWriter::new(self.archive.create()?));
+        download_and_write(op, list_opts, w, self.downloaders).await?;
         Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, btree_map::Entry};
+use std::{collections::{BTreeMap, btree_map::Entry}, time::Duration};
 
 use anyhow::bail;
 use clap::Subcommand;
@@ -7,7 +7,7 @@ use list::ListCmd;
 mod create;
 use create::CreateCmd;
 use storecfg::Values;
-use streampath::StreamPathRead;
+use clio::Input;
 
 use crate::{GlobalArgs, config::Config};
 
@@ -51,19 +51,20 @@ fn merge_config(
 pub struct OneStoreArgs {
     /// Store to use, which may be a URL (i.e. start with a scheme), a store name from a config file, or a path to a local directory.
     store: Option<String>,
-    /// Key-value pairs to override store configuration, e.g. `--option key=value`. For supported options, see https://opendal.apache.org/services/ .
+    /// Key-value pairs to override store configuration, e.g. `--option key=value`. For supported options, see <https://opendal.apache.org/services/> .
     #[arg(short, long="option", value_parser = storecfg::cli::parse_key_value_clap)]
     options: Vec<(String, String)>,
     /// Path to a TOML file containing store configurations. Can be specified multiple times to load multiple config files.
-    #[arg(short, long = "config")]
-    configs: Vec<StreamPathRead>,
+    #[arg(short, long = "config", value_parser)]
+    configs: Vec<Input>,
 }
 
 impl OneStoreArgs {
     pub fn select(self) -> anyhow::Result<opendal::Operator> {
         let mut coll = storecfg::StoreConfigCollector::default();
-        for spr in self.configs {
-            let contents = spr.read_all()?;
+        for mut cp in self.configs {
+            let mut contents = Vec::new();
+            cp.lock().read_to_end(&mut contents)?;
             let config: Config = toml::from_slice(&contents)?;
             for (name, kvs) in config.stores {
                 for (k, v) in kvs {
@@ -118,13 +119,14 @@ impl OneStoreArgs {
         };
 
         let op = opendal::Operator::from_uri(cfg.into_tuple())?
+            .layer(opendal::layers::TracingLayer::new())
+            .layer(opendal::layers::TimeoutLayer::default().with_timeout(Duration::from_secs(20)))
             .layer(
                 opendal::layers::RetryLayer::new()
                     .with_max_times(3)
                     .with_factor(2.0)
                     .with_min_delay(std::time::Duration::from_millis(200)),
-            )
-            .layer(opendal::layers::TracingLayer::new());
+            );
         Ok(op)
     }
 }

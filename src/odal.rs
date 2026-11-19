@@ -402,12 +402,13 @@ pub async fn download_and_write(
     status.set_message("Setting zip comment");
     zipper.set_comment(s)?;
 
-    download_handle.await??;
-
     objects_spinner.finish();
     bytes_spinner.finish();
     status.finish();
+    zipper.flush()?;
     zipper.finish()?;
+
+    download_handle.await??;
 
     eprintln!(
         "Wrote {} metadata files, {} other files; total {}",
