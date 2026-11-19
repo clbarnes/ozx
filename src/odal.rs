@@ -101,6 +101,7 @@ impl KeyProvider {
     }
 
     async fn handle_keys_unordered(self, prefix: &str) -> anyhow::Result<()> {
+        self.metadata_sender.send(None)?;
         let path = prefix;
         let opts = ListOptions {
             recursive: true,
@@ -112,11 +113,7 @@ impl KeyProvider {
             if meta.mode() != opendal::EntryMode::FILE {
                 continue;
             }
-            if is_metadata_path(&name) {
-                self.metadata_sender.send(Some(name))?;
-            } else {
-                self.other_sender.send(Some(name))?;
-            }
+            self.other_sender.send(Some(name))?;
         }
         Ok(())
     }
@@ -167,12 +164,16 @@ impl KeyProvider {
                 }
             }
         }
+        self.other_sender.send(None)?;
 
         // Will have 0 items if json_first is false.
         for s in by_slash.into_values() {
             for p in s {
                 self.metadata_sender.send(Some(p))?;
             }
+        }
+        if json_first {
+            self.metadata_sender.send(None)?;
         }
 
         Ok(())
@@ -290,7 +291,7 @@ impl Stream for KeyStream {
 
 type Handle = JoinHandle<opendal::Result<(String, Buffer)>>;
 
-#[instrument]
+#[instrument(skip(op, list_opts, value_send))]
 pub async fn download_worker(
     op: Operator,
     list_opts: ListOpts,
@@ -313,7 +314,7 @@ pub async fn download_worker(
     Ok(())
 }
 
-#[instrument]
+#[instrument(skip(zipper, buf, spinner, options))]
 fn write_to_zip(
     zipper: &mut ZipWriter<impl Write + std::io::Seek>,
     path: &str,
@@ -377,18 +378,22 @@ pub async fn download_and_write(
     let mut meta_out = 0;
     let mut other_out = 0;
 
-    while let Some(Some(h)) = value_recv.recv().await {
-        let (path, buf) = h.await??;
-        status.set_message(format!("Writing {path} ({})", HumanBytes(buf.len() as u64)));
-        let wrote = write_to_zip(&mut zipper, &path, buf, options, &bytes_spinner)?;
-        if is_metadata_path(&path) {
-            meta_out += 1;
-        } else {
-            other_out += 1;
+    let rt = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| -> anyhow::Result<()> {
+        while let Some(Some(h)) = value_recv.blocking_recv() {
+            let (path, buf) = rt.block_on(h)??;
+            status.set_message(format!("Writing {path} ({})", HumanBytes(buf.len() as u64)));
+            let wrote = write_to_zip(&mut zipper, &path, buf, options, &bytes_spinner)?;
+            if is_metadata_path(&path) {
+                meta_out += 1;
+            } else {
+                other_out += 1;
+            }
+            bytes_out += wrote;
+            objects_spinner.inc(1);
         }
-        bytes_out += wrote;
-        objects_spinner.inc(1);
-    }
+        Ok(())
+    })?;
 
     let comment = ZipComment::new("0.5", true);
     let s = serde_json::to_string(&comment)?;

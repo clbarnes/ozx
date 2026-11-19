@@ -21,8 +21,7 @@ struct Args {
 }
 
 #[derive(Debug, clap::Args)]
-struct GlobalArgs {
-}
+struct GlobalArgs {}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
