@@ -1,4 +1,4 @@
-use std::{io::BufWriter};
+use std::io::BufWriter;
 
 use super::Command;
 use crate::{GlobalArgs, commands::OneStoreArgs, odal::download_and_write};
@@ -44,12 +44,20 @@ impl Command for CreateCmd {
             eager: self.eager,
         };
 
-        if !self.archive.is_std() && self.archive.path().extension().is_none_or(|ext| ext != "ozx") {
+        if !self.archive.is_std()
+            && self
+                .archive
+                .path()
+                .extension()
+                .is_none_or(|ext| ext != "ozx")
+        {
             tracing::warn!("Archive extension should end with .ozx");
         }
 
         if !self.archive.is_local() {
-            bail!("Archive must be a local file or stdout. Writing to remote stores is not supported.");
+            bail!(
+                "Archive must be a local file or stdout. Writing to remote stores is not supported."
+            );
         }
 
         let w = zip::write::StreamWriter::new(BufWriter::new(self.archive.create()?));

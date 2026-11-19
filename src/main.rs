@@ -16,7 +16,7 @@ use crate::commands::Command;
 ///
 /// See further documetation at <https://docs.rs/crate/ozx/latest>.
 #[derive(Debug, Parser)]
-#[command(version, about, long_about, )]
+#[command(version, about, long_about)]
 struct Args {
     #[command(flatten)]
     global: GlobalArgs,

@@ -1,13 +1,16 @@
-use std::{collections::{BTreeMap, btree_map::Entry}, time::Duration};
+use std::{
+    collections::{BTreeMap, btree_map::Entry},
+    time::Duration,
+};
 
 use anyhow::bail;
 use clap::Subcommand;
 mod list;
 use list::ListCmd;
 mod create;
+use clio::Input;
 use create::CreateCmd;
 use storecfg::Values;
-use clio::Input;
 
 use crate::{GlobalArgs, config::Config};
 
