@@ -61,34 +61,3 @@ pub struct ZipOmeMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zip_file: Option<OmeZipFile>,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum NodeType {
-    Array,
-    Group,
-    Other(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZarrV3Metadata {
-    pub node_type: NodeType,
-    #[serde(default)]
-    pub attributes: ZarrAttributes,
-}
-
-impl ZarrV3Metadata {
-    pub fn is_array(&self) -> bool {
-        matches!(self.node_type, NodeType::Array)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ZarrAttributes {
-    pub ome: Option<OmeMetadata>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OmeMetadata {
-    pub version: String,
-}

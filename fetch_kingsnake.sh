@@ -1,6 +1,6 @@
 #!/bin/sh
 DIR="fixtures"
-if test -d "$DIR/kingsnake"; then
+if test -d "$DIR/kingsnake.ome.zarr"; then
     exit
 fi
 if test ! -f "$DIR/kingsnake.ozx"; then
