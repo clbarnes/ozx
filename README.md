@@ -1,6 +1,6 @@
 # ozx
 
-A CLI for archving an [OME-Zarr](https://ngff.openmicroscopy.org) hierarchy into a .ozx file [per RFC-9](https://ngff.openmicroscopy.org/rfc/9/index.html).
+A CLI for archiving an [OME-Zarr](https://ngff.openmicroscopy.org) hierarchy into a .ozx file [per RFC-9](https://ngff.openmicroscopy.org/rfc/9/index.html).
 
 ## Background
 
