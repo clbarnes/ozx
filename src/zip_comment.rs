@@ -34,7 +34,7 @@ impl ZipComment {
 #[serde(rename_all = "camelCase")]
 pub struct OmeZipFile {
     #[serde(skip_serializing_if = "Option::is_none")]
-    central_directory: Option<CentralDirectory>,
+    pub central_directory: Option<CentralDirectory>,
 }
 
 impl OmeZipFile {
@@ -51,7 +51,7 @@ impl OmeZipFile {
 #[serde(rename_all = "camelCase")]
 pub struct CentralDirectory {
     #[serde(skip_serializing_if = "Option::is_none")]
-    json_first: Option<bool>,
+    pub json_first: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

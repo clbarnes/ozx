@@ -17,7 +17,7 @@ use tokio::{
 use tracing::instrument;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-use crate::types::ZipComment;
+use crate::zip_comment::ZipComment;
 
 #[derive(Debug, Clone, Default)]
 pub struct DirContents {
@@ -32,7 +32,7 @@ pub struct KeyProvider {
     other_sender: UnboundedSender<Option<String>>,
 }
 
-fn is_metadata_path(path: &str) -> bool {
+pub(crate) fn is_metadata_path(path: &str) -> bool {
     path == "zarr.json" || path.ends_with("/zarr.json")
 }
 
@@ -241,6 +241,10 @@ impl KeyStream {
             other_recv: Some(other_recv),
             handle,
         }
+    }
+
+    pub fn cancel(self) {
+        self.handle.abort();
     }
 
     pub async fn finish(self) -> anyhow::Result<()> {

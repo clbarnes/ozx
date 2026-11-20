@@ -1,7 +1,9 @@
+use std::process::ExitCode;
+
 use crate::{
     GlobalArgs,
     commands::{Command, OneStoreArgs},
-    odal::{KeyStream, ListOpts},
+    odal::{KeyStream, ListOpts, is_metadata_path},
 };
 use futures::StreamExt;
 
@@ -13,10 +15,12 @@ pub struct ListCmd {
     eager: bool,
     #[arg(short = 'S', long)]
     no_sort_metadata: bool,
+    #[arg(short = 'D')]
+    no_data: bool,
 }
 
 impl Command for ListCmd {
-    async fn run(self, _global: GlobalArgs) -> anyhow::Result<()> {
+    async fn run(self, _global: GlobalArgs) -> anyhow::Result<ExitCode> {
         let op = self.store.select()?;
 
         let mut keys = KeyStream::new(
@@ -28,9 +32,17 @@ impl Command for ListCmd {
         );
 
         while let Some(path) = keys.next().await {
+            if self.no_data && !is_metadata_path(&path) {
+                if self.no_sort_metadata {
+                    continue;
+                } else {
+                    keys.cancel();
+                    return Ok(Default::default());
+                }
+            }
             println!("{path}");
         }
         keys.finish().await?;
-        Ok(())
+        Ok(Default::default())
     }
 }

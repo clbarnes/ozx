@@ -1,37 +1,40 @@
 use std::{
     collections::{BTreeMap, btree_map::Entry},
+    process::ExitCode,
     time::Duration,
 };
 
 use anyhow::bail;
 use clap::Subcommand;
-mod list;
-use list::ListCmd;
 mod create;
+mod list;
+mod validate;
 use clio::Input;
-use create::CreateCmd;
 use storecfg::Values;
 
 use crate::{GlobalArgs, config::Config};
 
 pub trait Command {
     /// Execute the command.
-    async fn run(self, global: GlobalArgs) -> anyhow::Result<()>;
+    async fn run(self, global: GlobalArgs) -> anyhow::Result<ExitCode>;
 }
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum Commands {
     /// List the contents of a zarr hierarchy in the order they would be zipped.
-    List(ListCmd),
+    List(list::ListCmd),
     /// Read a zarr hierarchy from a (possibly remote) store and write it to a local .ozx archive.
-    Create(CreateCmd),
+    Create(create::CreateCmd),
+    /// Validate an existing .ozx archive.
+    Validate(validate::ValidateCmd),
 }
 
 impl Command for Commands {
-    async fn run(self, global: GlobalArgs) -> anyhow::Result<()> {
+    async fn run(self, global: GlobalArgs) -> anyhow::Result<ExitCode> {
         match self {
             Commands::List(cmd) => cmd.run(global).await,
             Commands::Create(cmd) => cmd.run(global).await,
+            Commands::Validate(cmd) => cmd.run(global).await,
         }
     }
 }

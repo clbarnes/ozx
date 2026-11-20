@@ -1,9 +1,12 @@
 #![doc = include_str!("../README.md")]
-pub mod types;
+pub mod zip_comment;
 
 mod commands;
 mod config;
 mod odal;
+mod zarr_metadata;
+
+use std::process::ExitCode;
 
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -30,7 +33,7 @@ struct Args {
 struct GlobalArgs {}
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> anyhow::Result<ExitCode> {
     let args = Args::parse();
     let indicatif_layer = tracing_indicatif::IndicatifLayer::new();
     tracing_subscriber::registry()
@@ -41,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::debug!("Parsed args: {:?}", args);
     let Some(cmd) = args.command else {
         eprintln!("No command given");
-        return Ok(());
+        return Ok(Default::default());
     };
 
     cmd.run(args.global).await

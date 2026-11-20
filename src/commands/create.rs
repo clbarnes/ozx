@@ -1,4 +1,4 @@
-use std::io::BufWriter;
+use std::{io::BufWriter, process::ExitCode};
 
 use super::Command;
 use crate::{GlobalArgs, commands::OneStoreArgs, odal::download_and_write};
@@ -33,7 +33,7 @@ pub struct CreateCmd {
 }
 
 impl Command for CreateCmd {
-    async fn run(self, _global: GlobalArgs) -> anyhow::Result<()> {
+    async fn run(self, _global: GlobalArgs) -> anyhow::Result<ExitCode> {
         if !self.force && !self.archive.is_std() && self.archive.path().exists() {
             bail!("Archive already exists. Delete it or use --force.");
         }
@@ -62,6 +62,6 @@ impl Command for CreateCmd {
 
         let w = zip::write::StreamWriter::new(BufWriter::new(self.archive.create()?));
         download_and_write(op, list_opts, w, self.downloaders).await?;
-        Ok(())
+        Ok(Default::default())
     }
 }
