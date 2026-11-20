@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::bail;
 use clap::Subcommand;
+mod comment;
 mod create;
 mod list;
 mod validate;
@@ -27,6 +28,8 @@ pub enum Commands {
     Create(create::CreateCmd),
     /// Validate an existing .ozx archive.
     Validate(validate::ValidateCmd),
+    /// Print the zip comment of an .ozx archive to stdout.
+    Comment(comment::CommentCmd),
 }
 
 impl Command for Commands {
@@ -35,6 +38,7 @@ impl Command for Commands {
             Commands::List(cmd) => cmd.run(global).await,
             Commands::Create(cmd) => cmd.run(global).await,
             Commands::Validate(cmd) => cmd.run(global).await,
+            Commands::Comment(cmd) => cmd.run(global).await,
         }
     }
 }

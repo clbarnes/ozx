@@ -102,6 +102,15 @@ For these stores, use the `--eager` option to fetch the whole file list once and
 
 Use the `--no-sort-metadata` option to write all files in arbitrary order.
 
+### `ozx validate`
+
+This command validates a local file as an OZX archive.
+
+#### Limitations
+
+- Does not check for ZIP64 format extension
+- Does not check for multipart zips
+
 ## Installation
 
 Choose one of the following.

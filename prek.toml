@@ -20,14 +20,6 @@ types = ["rust"]
 pass_filenames = false
 
 [[repos.hooks]]
-id = "cargo-check"
-name = "cargo check"
-entry = "cargo check --all-targets"
-language = "system"
-types = ["rust"]
-pass_filenames = false
-
-[[repos.hooks]]
 id = "cargo-clippy"
 name = "cargo clippy"
 entry = "cargo clippy --all-targets --fix --allow-dirty -- -D warnings"

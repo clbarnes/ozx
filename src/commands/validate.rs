@@ -37,15 +37,12 @@ enum Report {
     MissingComment,
     #[error("invalid OZX zip comment: {0}")]
     InvalidComment(String),
-    #[error("entry {entry:?} has unsupported compression method {method:?}")]
-    Compression {
-        entry: Vec<u8>,
-        method: CompressionMethod,
-    },
-    #[error("metadata entry {entry:?} is not in breadth-first order (unexpected: {unexpected})")]
-    MetadataNotBreadthFirst { entry: Vec<u8>, unexpected: bool },
-    #[error("metadata entry {entry:?} comes after non-metadata files (unexpected: {unexpected})")]
-    MetadataAfterNonMetadata { entry: Vec<u8>, unexpected: bool },
+    #[error("found compression method {0}")]
+    Compression(CompressionMethod),
+    #[error("metadata files not in breadth-first order (unexpected: {unexpected})")]
+    MetadataNotBreadthFirst { unexpected: bool },
+    #[error("metadata file after non-metadata files (unexpected: {unexpected})")]
+    MetadataAfterNonMetadata { unexpected: bool },
     #[error("archive is missing root zarr.json")]
     NoRootZarrJson,
     #[error("zarr.json at root is invalid: {0}")]
@@ -58,6 +55,8 @@ enum Report {
     MismatchRootOmeZarrVersion { zarr_json: String, comment: String },
     #[error("Path should end with .ozx")]
     InvalidExtension,
+    #[error("contains a .ozx entry")]
+    ContainsOzxEntry,
 }
 
 impl From<zip::result::ZipError> for Report {
@@ -112,7 +111,15 @@ impl Report {
                     Info
                 }
             }
-            _ => Warn,
+            Report::MissingComment => Warn,
+            Report::InvalidComment(_) => Warn,
+            Report::Compression(_) => Warn,
+            Report::NoRootZarrJson => Error,
+            Report::InvalidRootZarrJson(_) => Warn,
+            Report::MissingRootOmeZarrVersion => Warn,
+            Report::MismatchRootOmeZarrVersion { .. } => Error,
+            Report::InvalidExtension => Warn,
+            Report::ContainsOzxEntry => Error,
         }
     }
 }
@@ -155,6 +162,11 @@ struct Validator {
     breadthfirst_flagged: bool,
     jsonfirst_flagged: bool,
     json_first: Option<bool>,
+    compression_methods: Vec<CompressionMethod>,
+}
+
+fn get_ext(name: &[u8]) -> Option<&[u8]> {
+    name.rsplit(|&c| c == b'.').next()
 }
 
 impl Validator {
@@ -169,6 +181,7 @@ impl Validator {
             breadthfirst_flagged: false,
             jsonfirst_flagged: false,
             json_first: None,
+            compression_methods: vec![],
         }
     }
 
@@ -255,7 +268,6 @@ impl Validator {
         if !self.all_zarr_json && !self.jsonfirst_flagged {
             self.jsonfirst_flagged = true;
             self.maybe_raise(Report::MetadataAfterNonMetadata {
-                entry: name.to_vec(),
                 unexpected: self.json_first.is_some_and(|j| j),
             })?;
         }
@@ -266,7 +278,6 @@ impl Validator {
             std::cmp::Ordering::Less if !self.breadthfirst_flagged => {
                 self.breadthfirst_flagged = true;
                 self.maybe_raise(Report::MetadataNotBreadthFirst {
-                    entry: name.to_vec(),
                     unexpected: self.json_first.is_some_and(|j| j),
                 })?;
             }
@@ -290,11 +301,14 @@ impl Validator {
         if entry.is_dir() {
             return Ok(());
         }
-        if entry.compression() != CompressionMethod::Stored {
-            self.maybe_raise(Report::Compression {
-                entry: entry.name_raw().to_vec(),
-                method: entry.compression(),
-            })?;
+        if get_ext(entry.name_raw()) == Some(b"ozx") {
+            self.maybe_raise(Report::ContainsOzxEntry)?;
+        }
+
+        let comp = entry.compression();
+        if comp != CompressionMethod::Stored && !self.compression_methods.contains(&comp) {
+            self.compression_methods.push(comp);
+            self.maybe_raise(Report::Compression(entry.compression()))?;
         }
         self.check_order(entry.name_raw())
     }
@@ -315,6 +329,9 @@ impl Validator {
                 return Ok(());
             }
         };
+        if !matches!(entry.compression(), CompressionMethod::STORE) {
+            return Ok(());
+        }
         let mut buf = Vec::with_capacity(entry.size() as usize);
         if let Err(e) = entry.read_to_end(&mut buf) {
             self.maybe_raise(e)?;
