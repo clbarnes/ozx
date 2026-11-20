@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
 use futures::{
     Stream, StreamExt,
     stream::{FuturesOrdered, FuturesUnordered},
@@ -17,7 +18,7 @@ use tokio::{
 use tracing::instrument;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-use crate::zip_comment::ZipComment;
+use crate::{zarr_metadata::ZarrMetadata, zip_comment::ZipComment};
 
 #[derive(Debug, Clone, Default)]
 pub struct DirContents {
@@ -343,6 +344,12 @@ pub async fn download_and_write(
     writer: impl Write + std::io::Seek,
     downloaders: usize,
 ) -> anyhow::Result<()> {
+    let zarr_json = op
+        .read("zarr.json")
+        .await
+        .with_context(|| "could not read root zarr.json")?;
+    let oz_meta: ZarrMetadata =
+        serde_json::from_reader(zarr_json).with_context(|| "invalid root zarr.json")?;
     let mut zipper = ZipWriter::new(writer);
 
     let (sender, mut value_recv) = tokio::sync::mpsc::channel(downloaders);
@@ -400,7 +407,7 @@ pub async fn download_and_write(
         Ok(())
     })?;
 
-    let comment = ZipComment::new("0.5", true);
+    let comment = ZipComment::new(oz_meta.version().unwrap_or("?"), true);
     let s = serde_json::to_string(&comment)?;
 
     status.set_message("Setting zip comment");
